@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:int-ws="http://www.springframework.org/schema/integration/ws"
+	xmlns:oxm="http://www.springframework.org/schema/oxm"
+	xmlns:int-stream="http://www.springframework.org/schema/integration/stream"
+	xsi:schemaLocation="
+		http://www.springframework.org/schema/integration/ws
+		http://www.springframework.org/schema/integration/ws/spring-integration-ws-4.3.xsd
+		http://www.springframework.org/schema/integration
+		http://www.springframework.org/schema/integration/spring-integration-4.3.xsd
+		http://www.springframework.org/schema/beans
+		http://www.springframework.org/schema/beans/spring-beans-4.3.xsd
+		http://www.springframework.org/schema/oxm
+		http://www.springframework.org/schema/oxm/spring-oxm-4.3.xsd
+		http://www.springframework.org/schema/integration/stream
+		http://www.springframework.org/schema/integration/stream/spring-integration-stream-4.3.xsd">
+
+
+	<int-ws:inbound-gateway id="simpleIssueService" request-channel="input" 
+			marshaller="marshaller" unmarshaller="marshaller"  />
+	<int:channel id="input"/>
+
+ 	<int:service-activator input-channel="input" output-channel="inputRouter">
+		<bean class="it.cg.main.ws.EndpointGateway"  />
+	</int:service-activator>
+
+<!-- ROUTER -->
+ 	<int:channel id="inputRouter"></int:channel>
+ 	<int:recipient-list-router id="listRouter" input-channel="inputRouter">
+	    <int:recipient channel="meteoChannel" selector-expression="payload.typeOf.equals('meteo')"/>
+	    <int:recipient channel="calcChannel" selector-expression="payload.typeOf.equals('calc')"/>
+ 	</int:recipient-list-router>
+
+		<!-- - Routing for meteo -->
+ 	<int:channel id="meteoChannel"></int:channel>
+	<int:service-activator id="meteoActivator" input-channel="meteoChannel" output-channel="meteoChannelForChain" >
+		<bean id="meteoActivatorBean" class="it.cg.main.beans.meteo.MeteoActivator"></bean>
+	</int:service-activator>
+	
+	<int:channel id="meteoOutChannel"></int:channel>
+	<int:service-activator id="serviceActivatorMeteoPost" input-channel="meteoOutChannel" >
+		<bean id="replyMeteoActivatorBean" class="it.cg.main.beans.meteo.ReplyMeteoAcrivator"></bean>
+	</int:service-activator>
+		<!-- CHAIN METEO -->
+	<int:chain input-channel="meteoChannelForChain" output-channel="meteoOutChannel"   >
+		<int-ws:outbound-gateway marshaller="marshallerOutboundJaxb"  unmarshaller="marshallerOutboundJaxb" 
+				uri="http://www.webservicex.net/globalweather.asmx" header-mapper="headerMapperMeteo" >
+		</int-ws:outbound-gateway>
+	</int:chain>
+	<bean id="headerMapperMeteo" class="it.cg.main.beans.meteo.HeaderMapperMeteo" />
+		<!-- handler reply meteo -->
+	<bean id="meteoAdapterReplyBean" class="it.cg.main.beans.meteo.MeteoAdapterReplyBean" ></bean>
+	
+	
+		<!-- - Routing for calc -->
+ 	<int:channel id="calcChannel"></int:channel>
+	<int:service-activator id="calcActivator" input-channel="calcChannel" output-channel="calcChannelForChain" >
+		<bean id="calcActivatorBean" class="it.cg.main.beans.calc.CalcActivator"></bean>
+	</int:service-activator>
+	
+	<int:channel id="calcOutChannel"></int:channel>
+	<int:service-activator id="serviceActivatorCalcPost" input-channel="calcOutChannel" >
+		<bean id="replyCalcActivatorBean" class="it.cg.main.beans.calc.ReplyCalcActivator"></bean>
+	</int:service-activator>
+	<!-- CHAIN CALC -->
+	<int:chain input-channel="calcChannelForChain" output-channel="calcOutChannel"   >
+		<int-ws:outbound-gateway marshaller="marshallerOutboundJaxb"  unmarshaller="marshallerOutboundJaxb" 
+				uri="http://www.w3schools.com/xml/tempconvert.asmx" header-mapper="headerMapperCalc" >
+		</int-ws:outbound-gateway>
+	</int:chain>
+	<bean id="headerMapperCalc" class="it.cg.main.beans.calc.HeaderMapperCalc" />
+		<!-- handler reply calc -->
+	<bean id="calcAdapterReplyBean" class="it.cg.main.beans.calc.CalcAdapterReplyBean" ></bean>
+	
+		<!-- MARSHALLERs -->
+ 	<bean id="marshaller" class="org.springframework.oxm.jaxb.Jaxb2Marshaller" >
+		<property name="contextPath" value="com.blog.samples.webservices.servicedetail" ></property>
+	</bean>
+	<!-- <bean id="marshallerOutbound" class="it.cg.main.beans.OutboundMarshalling" > 	</bean> -->
+ 	<bean id="marshallerOutboundJaxb" class="org.springframework.oxm.jaxb.Jaxb2Marshaller" >
+		<!-- <property name="contextPath" value="net.webservicex" ></property> -->
+		<property name="contextPaths" value="net.webservicex,com.w3schools.xml"></property>
+	</bean>
+	
+</beans>
+
+
+
